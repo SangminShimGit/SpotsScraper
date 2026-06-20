@@ -120,7 +120,6 @@ async function parseTripRows(html) {
           _tripInfoPart: 0,   // 0=before first <br>, 1=collecting trip type, 2=done
           _tripInfoBuf: '',
           _greenBuf: '',
-          _spanType: null,
         };
         el.onEndTag(() => {
           if (!cell || cell._skip) { cell = null; return; }
@@ -189,24 +188,19 @@ async function parseTripRows(html) {
     })
 
     // ── Spot availability ──────────────────────────────────────────────────
-    // Use broad span selector and check class in handler — CF HTMLRewriter
-    // has issues with underscores in class selectors (font_green13, font_red13).
-    .on('td.scale-data .trip-spots span', {
-      element(el) {
-        const cls = el.getAttribute('class') || '';
-        if (!cell) return;
-        if (cls.includes('chartered')) { cell._skip = true; return; }
-        if (cls.includes('font_red13')) { cell._spanType = 'red'; cell.spotsLeft = 0; }
-        else if (cls.includes('font_green13')) { cell._spanType = 'green'; }
-        el.onEndTag(() => { if (cell) cell._spanType = null; });
-      },
+    // Read all text from .trip-spots and parse — avoids CF HTMLRewriter bugs
+    // with underscore class selectors (font_green13, font_red13).
+    .on('td.scale-data .trip-spots', {
       text(chunk) {
-        if (!cell || !chunk.text) return;
-        if (cell._spanType === 'red') {
-          cell.rawStatus = (cell.rawStatus || '') + chunk.text;
-        } else if (cell._spanType === 'green') {
-          cell._greenBuf += chunk.text;
-          const val = parseInt(cell._greenBuf.trim(), 10);
+        if (!cell || !chunk.text.trim()) return;
+        const text = chunk.text.trim();
+        const lower = text.toLowerCase();
+        if (lower === 'charter' || lower.includes('sold out') || lower.includes('full')) {
+          cell.rawStatus = text;
+          if (lower === 'charter') cell._skip = true;
+          else cell.spotsLeft = 0;
+        } else {
+          const val = parseInt(text, 10);
           if (Number.isFinite(val)) cell.spotsLeft = val;
         }
       },
