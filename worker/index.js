@@ -188,21 +188,23 @@ async function parseTripRows(html) {
     })
 
     // ── Spot availability ──────────────────────────────────────────────────
-    // Read all text from .trip-spots and parse — avoids CF HTMLRewriter bugs
-    // with underscore class selectors (font_green13, font_red13).
-    .on('td.scale-data .trip-spots', {
+    // Use attribute selector to avoid CF HTMLRewriter bug with underscores in
+    // class selectors (.font_green13, .font_red13 don't work; [class*=] does).
+    .on('td.scale-data .trip-spots span.chartered', {
+      element() { if (cell) cell._skip = true; },
+    })
+    .on('td.scale-data .trip-spots span[class*="red"]', {
+      element() { if (cell) cell.spotsLeft = 0; },
       text(chunk) {
-        if (!cell || !chunk.text.trim()) return;
-        const text = chunk.text.trim();
-        const lower = text.toLowerCase();
-        if (lower === 'charter' || lower.includes('sold out') || lower.includes('full')) {
-          cell.rawStatus = text;
-          if (lower === 'charter') cell._skip = true;
-          else cell.spotsLeft = 0;
-        } else {
-          const val = parseInt(text, 10);
-          if (Number.isFinite(val)) cell.spotsLeft = val;
-        }
+        if (cell && chunk.text) cell.rawStatus = (cell.rawStatus || '') + chunk.text;
+      },
+    })
+    .on('td.scale-data .trip-spots span[class*="green"]', {
+      text(chunk) {
+        if (!cell || !chunk.text) return;
+        cell._greenBuf += chunk.text;
+        const val = parseInt(cell._greenBuf.trim(), 10);
+        if (Number.isFinite(val)) cell.spotsLeft = val;
       },
     });
 
