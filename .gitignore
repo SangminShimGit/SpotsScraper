@@ -1,0 +1,6 @@
+node_modules/
+.env
+page.html
+scraper-log.json
+scrapers/spots/fr_debug_*.html
+scrapers/spots/config.local.js

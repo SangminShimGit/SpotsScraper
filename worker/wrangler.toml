@@ -1,0 +1,23 @@
+name = "spot-scraper"
+main = "index.js"
+compatibility_date = "2024-09-23"
+
+# Cron trigger — runs every 10 minutes
+[triggers]
+crons = ["*/10 * * * *"]
+
+[observability]
+enabled = true
+
+# Optional overrides — can also be set per-environment below
+# [vars]
+# DB_TABLE_TARGETS   = "target_boats"
+# DB_TABLE_SPOTS_LOG = "boat_spots_log"
+# DB_CONFLICT_COLS   = "landing_name,boat_name,trip_date,standardized_trip_type"
+# SCRAPE_ENGINE_TYPES = "your_engine_type"
+# LANDING_DELAY_MS   = "30000"   # 30s between landings (7 × ~33s ≈ 3.5min total)
+
+# Secrets — set these once via CLI (never commit real values):
+#   wrangler secret put SUPABASE_URL
+#   wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+#   wrangler secret put SCRAPE_ENGINE_TYPES
