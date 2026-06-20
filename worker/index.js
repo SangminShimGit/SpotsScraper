@@ -323,7 +323,9 @@ async function run(env) {
   for (let i = 0; i < urls.length; i++) {
     const url = urls[i];
     try {
-      const rows = (await scrapeLanding(url, groups.get(url))).filter(r => r.spots_left > 0 && r.price !== null);
+      const allRows = await scrapeLanding(url, groups.get(url));
+      const rows = allRows.filter(r => r.spots_left > 0 && r.price !== null);
+      console.log(`[Worker] ${new URL(url).hostname}: ${rows.length}/${allRows.length} row(s) to upsert (${allRows.length - rows.length} skipped — spots_left=0 or price=null)`);
       if (rows.length > 0) {
         const { error: upsertError } = await supabase
           .from(TABLE_SPOTS_LOG)
