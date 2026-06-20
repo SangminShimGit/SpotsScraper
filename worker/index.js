@@ -120,6 +120,7 @@ async function parseTripRows(html) {
           _tripInfoPart: 0,   // 0=before first <br>, 1=collecting trip type, 2=done
           _tripInfoBuf: '',
           _greenBuf: '',
+          _spanType: null,
         };
         el.onEndTag(() => {
           if (!cell || cell._skip) { cell = null; return; }
@@ -188,21 +189,26 @@ async function parseTripRows(html) {
     })
 
     // ── Spot availability ──────────────────────────────────────────────────
-    .on('td.scale-data .trip-spots span.chartered', {
-      element() { if (cell) cell._skip = true; },
-    })
-    .on('td.scale-data .trip-spots span.font_red13', {
-      element() { if (cell) cell.spotsLeft = 0; },
-      text(chunk) {
-        if (cell && chunk.text) cell.rawStatus = (cell.rawStatus || '') + chunk.text;
+    // Use broad span selector and check class in handler — CF HTMLRewriter
+    // has issues with underscores in class selectors (font_green13, font_red13).
+    .on('td.scale-data .trip-spots span', {
+      element(el) {
+        const cls = el.getAttribute('class') || '';
+        if (!cell) return;
+        if (cls.includes('chartered')) { cell._skip = true; return; }
+        if (cls.includes('font_red13')) { cell._spanType = 'red'; cell.spotsLeft = 0; }
+        else if (cls.includes('font_green13')) { cell._spanType = 'green'; }
+        el.onEndTag(() => { if (cell) cell._spanType = null; });
       },
-    })
-    .on('td.scale-data .trip-spots span.font_green13', {
       text(chunk) {
         if (!cell || !chunk.text) return;
-        cell._greenBuf += chunk.text;
-        const val = parseInt(cell._greenBuf.trim(), 10);
-        if (Number.isFinite(val)) cell.spotsLeft = val;
+        if (cell._spanType === 'red') {
+          cell.rawStatus = (cell.rawStatus || '') + chunk.text;
+        } else if (cell._spanType === 'green') {
+          cell._greenBuf += chunk.text;
+          const val = parseInt(cell._greenBuf.trim(), 10);
+          if (Number.isFinite(val)) cell.spotsLeft = val;
+        }
       },
     });
 
