@@ -191,13 +191,15 @@ async function parseTripRows(html) {
     .on('td.scale-data .trip-spots span.chartered', {
       element() { if (cell) cell._skip = true; },
     })
-    .on('td.scale-data .trip-spots span.font_red13', {
+    // span.font_red13 / span.font_green13 selectors don't work in CF HTMLRewriter
+    // because of underscore in class names — use exact attribute match instead.
+    .on('[class="font_red13"]', {
       element() { if (cell) cell.spotsLeft = 0; },
       text(chunk) {
         if (cell && chunk.text) cell.rawStatus = (cell.rawStatus || '') + chunk.text;
       },
     })
-    .on('td.scale-data .trip-spots span.font_green13', {
+    .on('[class="font_green13"]', {
       text(chunk) {
         if (!cell || !chunk.text) return;
         cell._greenBuf += chunk.text;
