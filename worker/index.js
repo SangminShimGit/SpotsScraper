@@ -200,7 +200,11 @@ async function parseTripRows(html) {
       },
     })
     .on('[class="font_green13"]', {
+      element() {
+        console.log(`[GreenDebug] matched, cell=${cell ? 'ok' : 'null'}`);
+      },
       text(chunk) {
+        console.log(`[GreenDebug] text="${chunk.text}" cell=${cell ? 'ok' : 'null'}`);
         if (!cell || !chunk.text) return;
         cell._greenBuf += chunk.text;
         const val = parseInt(cell._greenBuf.trim(), 10);
