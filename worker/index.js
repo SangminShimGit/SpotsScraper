@@ -188,21 +188,16 @@ async function parseTripRows(html) {
     })
 
     // ── Spot availability ──────────────────────────────────────────────────
-    // Use attribute selector to avoid CF HTMLRewriter bug with underscores in
-    // class selectors (.font_green13, .font_red13 don't work; [class*=] does).
     .on('td.scale-data .trip-spots span.chartered', {
       element() { if (cell) cell._skip = true; },
     })
-    .on('td.scale-data .trip-spots span[class*="red"]', {
+    .on('td.scale-data .trip-spots span.font_red13', {
       element() { if (cell) cell.spotsLeft = 0; },
       text(chunk) {
         if (cell && chunk.text) cell.rawStatus = (cell.rawStatus || '') + chunk.text;
       },
     })
-    .on('td.scale-data .trip-spots span[class*="green"]', {
-      element() {
-        console.log(`[SpanDebug] green span matched, cell=${cell ? 'ok' : 'null'}`);
-      },
+    .on('td.scale-data .trip-spots span.font_green13', {
       text(chunk) {
         if (!cell || !chunk.text) return;
         cell._greenBuf += chunk.text;
