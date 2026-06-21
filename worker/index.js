@@ -200,6 +200,9 @@ async function parseTripRows(html) {
       },
     })
     .on('td.scale-data .trip-spots span[class*="green"]', {
+      element() {
+        console.log(`[SpanDebug] green span matched, cell=${cell ? 'ok' : 'null'}`);
+      },
       text(chunk) {
         if (!cell || !chunk.text) return;
         cell._greenBuf += chunk.text;
