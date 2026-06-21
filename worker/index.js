@@ -20,6 +20,10 @@ import { addDays, format, isValid, parse, startOfToday } from 'date-fns';
 
 // ─── Pure helpers (ported from spotsScraperEngine.js) ────────────────────────
 
+function decodeEntities(str) {
+  return str.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code, 10)));
+}
+
 function cleanPrice(raw) {
   if (!raw || typeof raw !== 'string') return null;
   const cleaned = raw.replace(/[^0-9.]/g, '');
@@ -200,13 +204,9 @@ async function parseTripRows(html) {
       },
     })
     .on('[class="font_green13"]', {
-      element() {
-        console.log(`[GreenDebug] matched, cell=${cell ? 'ok' : 'null'}`);
-      },
       text(chunk) {
-        console.log(`[GreenDebug] text="${chunk.text}" cell=${cell ? 'ok' : 'null'}`);
         if (!cell || !chunk.text) return;
-        cell._greenBuf += chunk.text;
+        cell._greenBuf += decodeEntities(chunk.text);
         const val = parseInt(cell._greenBuf.trim(), 10);
         if (Number.isFinite(val)) cell.spotsLeft = val;
       },
