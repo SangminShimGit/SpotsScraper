@@ -278,7 +278,7 @@ async function scrapeLanding(landingUrl, boats) {
       max_passengers:          raw.maxPassengers,
       price:                   cleanPrice(raw.rawPrice),
       status:                  deriveStatus(spotsLeft, raw.rawStatus),
-      scraped_at:              new Date().toISOString(),
+      recorded_at:             new Date().toISOString(),
     });
   }
 
