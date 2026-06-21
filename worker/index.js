@@ -347,6 +347,9 @@ async function run(env) {
       const rows = allRows.filter(r => r.spots_left > 0 && r.price !== null);
       console.log(`[Worker] ${new URL(url).hostname}: ${rows.length}/${allRows.length} row(s) to upsert (${allRows.length - rows.length} skipped — spots_left=0 or price=null)`);
       if (rows.length > 0) {
+        for (const r of rows) {
+          console.log(`[Upsert] ${r.boat_name} | ${r.trip_date} | ${r.standardized_trip_type} | spots=${r.spots_left} | $${r.price}`);
+        }
         const { error: upsertError } = await supabase
           .from(TABLE_SPOTS_LOG)
           .upsert(rows, { onConflict: CONFLICT_COLS });
