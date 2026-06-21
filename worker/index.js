@@ -344,8 +344,8 @@ async function run(env) {
     const url = urls[i];
     try {
       const allRows = await scrapeLanding(url, groups.get(url));
-      const rows = allRows.filter(r => r.spots_left > 0 && r.price !== null);
-      console.log(`[Worker] ${new URL(url).hostname}: ${rows.length}/${allRows.length} row(s) to upsert (${allRows.length - rows.length} skipped — spots_left=0 or price=null)`);
+      const rows = allRows.filter(r => r.price !== null);
+      console.log(`[Worker] ${new URL(url).hostname}: ${rows.length}/${allRows.length} row(s) to upsert (${allRows.length - rows.length} skipped — price=null)`);
       if (rows.length > 0) {
         for (const r of rows) {
           console.log(`[Upsert] ${r.boat_name} | ${r.trip_date} | ${r.standardized_trip_type} | spots=${r.spots_left} | $${r.price}`);
