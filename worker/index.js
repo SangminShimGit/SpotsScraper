@@ -274,7 +274,7 @@ async function scrapeLanding(landingUrl, boats) {
     if (!tripDate || tripDate < window.startIso || tripDate > window.endIso) continue;
 
     const spotsLeft = raw.spotsLeft ?? 0;
-    console.log(`[Debug] boat=${raw.rawBoatName} date=${raw.rawDate} price="${raw.rawPrice}" spots=${raw.spotsLeft}`);
+    console.log(`[Debug] boat=${raw.rawBoatName} date=${raw.rawDate} price="${raw.rawPrice}" spots=${raw.spotsLeft} tripType="${raw.rawTripType}"`);
     results.push({
       landing_name:            matchedBoat.landing_name,
       boat_name:               matchedBoat.boat_name,
