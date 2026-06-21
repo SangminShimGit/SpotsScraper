@@ -162,7 +162,12 @@ async function parseTripRows(html) {
     })
     .on('td.scale-data .trip-info .trip-icons', {
       element(el) {
-        if (cell) { cell._inIgnored = true; cell._tripInfoPart = 2; }
+        if (cell) {
+          cell._inIgnored = true;
+          // Only mark done if we're already collecting trip type (after <br>).
+          // If trip-icons appears before <br>, ignore it but keep state at 0.
+          if (cell._tripInfoPart === 1) cell._tripInfoPart = 2;
+        }
         el.onEndTag(() => { if (cell) cell._inIgnored = false; });
       },
     })
