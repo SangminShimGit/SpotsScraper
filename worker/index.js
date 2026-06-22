@@ -340,6 +340,7 @@ async function run(env) {
 
   console.log(`[Worker] Slot ${slot}, offset ${offset} — order: ${urls.map(u => new URL(u).hostname).join(', ')}`);
 
+  /*
   for (let i = 0; i < urls.length; i++) {
     const url = urls[i];
     try {
@@ -365,6 +366,35 @@ async function run(env) {
       console.log(`[Worker] Waiting ${LANDING_DELAY_MS}ms before next landing...`);
       await new Promise((r) => setTimeout(r, LANDING_DELAY_MS));
     }
+  }
+  */
+
+  const results = await Promise.allSettled(
+    urls.map(async (url) => {
+      const allRows = await scrapeLanding(url, groups.get(url));
+      const rows = allRows.filter(r => r.price !== null);
+      console.log(`[Worker] ${new URL(url).hostname}: ${rows.length}/${allRows.length} row(s) to upsert (${allRows.length - rows.length} skipped — price=null)`);
+      if (rows.length > 0) {
+        for (const r of rows) {
+          console.log(`[Upsert] ${r.boat_name} | ${r.trip_date} | ${r.standardized_trip_type} | spots=${r.spots_left} | $${r.price}`);
+        }
+        const { error: upsertError } = await supabase
+          .from(TABLE_SPOTS_LOG)
+          .upsert(rows, { onConflict: CONFLICT_COLS });
+        if (upsertError) throw upsertError;
+        return rows.length;
+      }
+      return 0;
+    })
+  );
+  
+  totalUpserted = results
+    .filter(r => r.status === 'fulfilled')
+    .reduce((sum, r) => sum + r.value, 0);
+  
+  const failed = results.filter(r => r.status === 'rejected');
+  if (failed.length > 0) {
+    failed.forEach((r, i) => console.error(`[Worker] Error processing ${urls[i]}:`, r.reason?.message));
   }
 
   console.log(`[Worker] Done — ${totalUpserted} row(s) upserted.`);
