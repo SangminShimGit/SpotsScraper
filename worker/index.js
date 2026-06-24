@@ -328,7 +328,7 @@ async function run(env) {
     groups.set(boat.target_url, arr);
   }
 
-  const LANDING_DELAY_MS = parseInt(env.LANDING_DELAY_MS || '30000', 10);
+  //const LANDING_DELAY_MS = parseInt(env.LANDING_DELAY_MS || '30000', 10);
   let totalUpserted = 0;
 
   // Rotate landing order each cron slot so no landing is always last.
