@@ -115,6 +115,7 @@ async function parseTripRows(html) {
           rawDate: '',
           rawLoad: '',
           rawPrice: '',
+          rawAdultPrice: null,  // set only when a two-tier price (.trip-adult) is present
           rawStatus: null,
           spotsLeft: null,
           _skip: false,
@@ -134,7 +135,9 @@ async function parseTripRows(html) {
             rawTripType: cell._tripInfoBuf.trim() || null,
             spotsLeft:   cell.spotsLeft,
             maxPassengers: Number.isFinite(maxPassengers) ? maxPassengers : null,
-            rawPrice:    cell.rawPrice.trim(),
+            // Two-tier pricing (e.g. Redondo: "Jr/Sr/Mil" + "Adult") concatenates
+            // into an unparseable string — prefer the adult fare when present.
+            rawPrice:    (cell.rawAdultPrice != null ? cell.rawAdultPrice : cell.rawPrice).trim(),
             rawStatus:   cell.rawStatus,
           });
           cell = null;
@@ -194,6 +197,14 @@ async function parseTripRows(html) {
     })
     .on('td.scale-data .trip-price', {
       text(chunk) { if (cell && chunk.text) cell.rawPrice += chunk.text; },
+    })
+    // Exception: some landings (e.g. Redondo) split price into discount + adult
+    // rows. Capture the adult fare separately so it wins over the merged text.
+    .on('td.scale-data .trip-price .trip-adult', {
+      element() { if (cell) cell.rawAdultPrice = ''; },
+      text(chunk) {
+        if (cell && cell.rawAdultPrice != null && chunk.text) cell.rawAdultPrice += chunk.text;
+      },
     })
 
     // ── Spot availability ──────────────────────────────────────────────────
