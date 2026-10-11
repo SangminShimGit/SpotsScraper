@@ -89,6 +89,28 @@ function getDateWindow() {
   };
 }
 
+// Status for a trip the landing no longer lists. The app hides it (spots_left 0).
+const REMOVED_STATUS = 'Removed';
+
+function boatKey(row) {
+  return `${row.landing_name}|${row.boat_name}`;
+}
+
+function tripKey(row) {
+  return `${boatKey(row)}|${row.trip_date}|${row.standardized_trip_type}`;
+}
+
+// Stored rows the scrape should have seen but did not: a boat on a landing page
+// that was scraped successfully, trip date inside the scrape window, and absent
+// from the scraped rows.
+function findRemovedIds(existingRows, scrapedBoats, seenRows) {
+  const boats = new Set(scrapedBoats.map(boatKey));
+  const seen = new Set(seenRows.map(tripKey));
+  return existingRows
+    .filter((row) => boats.has(boatKey(row)) && !seen.has(tripKey(row)))
+    .map((row) => row.id);
+}
+
 // ─── HTMLRewriter-based HTML parser ──────────────────────────────────────────
 //
 // Parses the trip table structure:
@@ -305,6 +327,37 @@ async function scrapeLanding(landingUrl, boats) {
   return results;
 }
 
+// ─── Mark trips the landings no longer list ──────────────────────────────────
+//
+// The upsert only rewrites trips still on the page, so a delisted trip would keep
+// its last seat count forever. One select + one update for the whole run keeps
+// the subrequest count flat.
+
+async function markRemovedRows(supabase, table, scrapedBoats, seenRows) {
+  if (scrapedBoats.length === 0) return 0;
+
+  const window = getDateWindow();
+  const { data, error } = await supabase
+    .from(table)
+    .select('id, landing_name, boat_name, trip_date, standardized_trip_type')
+    .in('boat_name', [...new Set(scrapedBoats.map((b) => b.boat_name))])
+    .gte('trip_date', window.startIso)
+    .lte('trip_date', window.endIso)
+    .neq('status', REMOVED_STATUS);
+  if (error) throw error;
+
+  const ids = findRemovedIds(data ?? [], scrapedBoats, seenRows);
+  if (ids.length === 0) return 0;
+
+  const { error: updateError } = await supabase
+    .from(table)
+    .update({ status: REMOVED_STATUS, spots_left: 0 })
+    .in('id', ids);
+  if (updateError) throw updateError;
+
+  return ids.length;
+}
+
 // ─── Main orchestration ───────────────────────────────────────────────────────
 
 async function run(env) {
@@ -393,15 +446,32 @@ async function run(env) {
           .from(TABLE_SPOTS_LOG)
           .upsert(rows, { onConflict: CONFLICT_COLS });
         if (upsertError) throw upsertError;
-        return rows.length;
       }
-      return 0;
+      // A page that yielded rows was read correctly, so its boats' trips that are
+      // missing from allRows are gone. Rows skipped for price=null still count as seen.
+      return {
+        count: rows.length,
+        scrapedBoats: allRows.length > 0 ? groups.get(url) : [],
+        seenRows: allRows,
+      };
     })
   );
-  
-  totalUpserted = results
-    .filter(r => r.status === 'fulfilled')
-    .reduce((sum, r) => sum + r.value, 0);
+
+  const fulfilled = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+
+  totalUpserted = fulfilled.reduce((sum, r) => sum + r.count, 0);
+
+  try {
+    const removed = await markRemovedRows(
+      supabase,
+      TABLE_SPOTS_LOG,
+      fulfilled.flatMap(r => r.scrapedBoats),
+      fulfilled.flatMap(r => r.seenRows),
+    );
+    console.log(`[Worker] ${removed} delisted row(s) marked ${REMOVED_STATUS}.`);
+  } catch (err) {
+    console.error('[Worker] Failed to mark delisted rows:', err.message);
+  }
   
   const failed = results.filter(r => r.status === 'rejected');
   if (failed.length > 0) {
