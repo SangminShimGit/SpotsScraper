@@ -288,7 +288,7 @@ async function scrapeLanding(landingUrl, boats) {
     html = await res.text();
   } catch (err) {
     console.error(`[Scraper] Fetch failed for ${landingUrl}:`, err.message);
-    return [];
+    return { rows: [], read: false };
   }
 
   const rawRows = await parseTripRows(html);
@@ -324,7 +324,9 @@ async function scrapeLanding(landingUrl, boats) {
     `[Scraper] ${landingUrl}: ${rawRows.length} raw row(s), ` +
     `${results.length} matched (${window.startIso} → ${window.endIso})`,
   );
-  return results;
+  // A page that lists any trip at all was read correctly, even when none of our boats
+  // sail inside the window. Zero raw rows means a block page or a changed layout.
+  return { rows: results, read: rawRows.length > 0 };
 }
 
 // ─── Mark trips the landings no longer list ──────────────────────────────────
@@ -356,6 +358,21 @@ async function markRemovedRows(supabase, table, scrapedBoats, seenRows) {
   if (updateError) throw updateError;
 
   return ids.length;
+}
+
+// ─── Record which pages were read ─────────────────────────────────────────────
+//
+// boat_spots_log.recorded_at only moves when a trip falls inside the window, so the
+// stale-crawl alert reads last_checked_at instead. Failing here must not stop the run.
+
+async function markChecked(supabase, table, urls) {
+  if (urls.length === 0) return;
+  const { error } = await supabase
+    .from(table)
+    .update({ last_checked_at: new Date().toISOString() })
+    .in('target_url', urls)
+    .eq('is_active', true);
+  if (error) console.error('[Worker] Failed to record last_checked_at:', error.message);
 }
 
 // ─── Main orchestration ───────────────────────────────────────────────────────
@@ -435,7 +452,7 @@ async function run(env) {
 
   const results = await Promise.allSettled(
     urls.map(async (url) => {
-      const allRows = await scrapeLanding(url, groups.get(url));
+      const { rows: allRows, read } = await scrapeLanding(url, groups.get(url));
       const rows = allRows.filter(r => r.price !== null);
       console.log(`[Worker] ${new URL(url).hostname}: ${rows.length}/${allRows.length} row(s) to upsert (${allRows.length - rows.length} skipped — price=null)`);
       if (rows.length > 0) {
@@ -450,6 +467,8 @@ async function run(env) {
       // A page that yielded rows was read correctly, so its boats' trips that are
       // missing from allRows are gone. Rows skipped for price=null still count as seen.
       return {
+        url,
+        read,
         count: rows.length,
         scrapedBoats: allRows.length > 0 ? groups.get(url) : [],
         seenRows: allRows,
@@ -460,6 +479,8 @@ async function run(env) {
   const fulfilled = results.filter(r => r.status === 'fulfilled').map(r => r.value);
 
   totalUpserted = fulfilled.reduce((sum, r) => sum + r.count, 0);
+
+  await markChecked(supabase, TABLE_TARGETS, fulfilled.filter(r => r.read).map(r => r.url));
 
   try {
     const removed = await markRemovedRows(
